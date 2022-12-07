@@ -39,7 +39,7 @@ obj_list = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train'
             'toothbrush']
 
 # tf bilinear interpolation is different from any other's, just make do
-input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536, 1536]
+input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536]
 input_size = input_sizes[compound_coef] if force_input_size is None else force_input_size
 
 # load model
@@ -57,7 +57,7 @@ if use_float16:
 def display(preds, imgs):
     for i in range(len(imgs)):
         if len(preds[i]['rois']) == 0:
-            return imgs[i]
+            continue
 
         for j in range(len(preds[i]['rois'])):
             (x1, y1, x2, y2) = preds[i]['rois'][j].astype(np.int)

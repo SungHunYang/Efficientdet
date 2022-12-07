@@ -1,0 +1,6 @@
+ConcreteCrack
+Exposure
+Spalling
+PaintDamage
+Efflorescene
+SteelDefect

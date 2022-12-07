@@ -51,39 +51,18 @@ class FocalLoss(nn.Module):
             bbox_annotation = annotations[j]
             bbox_annotation = bbox_annotation[bbox_annotation[:, 4] != -1]
 
-            classification = torch.clamp(classification, 1e-4, 1.0 - 1e-4)
-            
             if bbox_annotation.shape[0] == 0:
                 if torch.cuda.is_available():
-                    
-                    alpha_factor = torch.ones_like(classification) * alpha
-                    alpha_factor = alpha_factor.cuda()
-                    alpha_factor = 1. - alpha_factor
-                    focal_weight = classification
-                    focal_weight = alpha_factor * torch.pow(focal_weight, gamma)
-                    
-                    bce = -(torch.log(1.0 - classification))
-                    
-                    cls_loss = focal_weight * bce
-                    
                     regression_losses.append(torch.tensor(0).to(dtype).cuda())
-                    classification_losses.append(cls_loss.sum())
+                    classification_losses.append(torch.tensor(0).to(dtype).cuda())
                 else:
-                    
-                    alpha_factor = torch.ones_like(classification) * alpha
-                    alpha_factor = 1. - alpha_factor
-                    focal_weight = classification
-                    focal_weight = alpha_factor * torch.pow(focal_weight, gamma)
-                    
-                    bce = -(torch.log(1.0 - classification))
-                    
-                    cls_loss = focal_weight * bce
-                    
                     regression_losses.append(torch.tensor(0).to(dtype))
-                    classification_losses.append(cls_loss.sum())
+                    classification_losses.append(torch.tensor(0).to(dtype))
 
                 continue
-                
+
+            classification = torch.clamp(classification, 1e-4, 1.0 - 1e-4)
+
             IoU = calc_iou(anchor[:, :], bbox_annotation[:, :4])
 
             IoU_max, IoU_argmax = torch.max(IoU, dim=1)
@@ -178,4 +157,4 @@ class FocalLoss(nn.Module):
             display(out, imgs, obj_list, imshow=False, imwrite=True)
 
         return torch.stack(classification_losses).mean(dim=0, keepdim=True), \
-               torch.stack(regression_losses).mean(dim=0, keepdim=True) * 50  # https://github.com/google/automl/blob/6fdd1de778408625c1faf368a327fe36ecd41bf7/efficientdet/hparams_config.py#L233
+               torch.stack(regression_losses).mean(dim=0, keepdim=True)

@@ -4,16 +4,16 @@
 Simple Inference Script of EfficientDet-Pytorch
 """
 import time
+
 import torch
 from torch.backends import cudnn
-from matplotlib import colors
 
 from backbone import EfficientDetBackbone
 import cv2
 import numpy as np
 
 from efficientdet.utils import BBoxTransform, ClipBoxes
-from utils.utils import preprocess, invert_affine, postprocess, STANDARD_COLORS, standard_to_bgr, get_index_label, plot_one_box
+from utils.utils import preprocess, invert_affine, postprocess
 
 compound_coef = 0
 force_input_size = None  # set None to use default size
@@ -42,10 +42,8 @@ obj_list = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train'
             'refrigerator', '', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier',
             'toothbrush']
 
-
-color_list = standard_to_bgr(STANDARD_COLORS)
 # tf bilinear interpolation is different from any other's, just make do
-input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536, 1536]
+input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536]
 input_size = input_sizes[compound_coef] if force_input_size is None else force_input_size
 ori_imgs, framed_imgs, framed_metas = preprocess(img_path, max_size=input_size)
 
@@ -58,7 +56,7 @@ x = x.to(torch.float32 if not use_float16 else torch.float16).permute(0, 3, 1, 2
 
 model = EfficientDetBackbone(compound_coef=compound_coef, num_classes=len(obj_list),
                              ratios=anchor_ratios, scales=anchor_scales)
-model.load_state_dict(torch.load(f'weights/efficientdet-d{compound_coef}.pth', map_location='cpu'))
+model.load_state_dict(torch.load(f'weights/efficientdet-d{compound_coef}.pth'))
 model.requires_grad_(False)
 model.eval()
 
@@ -78,19 +76,21 @@ with torch.no_grad():
                       regressBoxes, clipBoxes,
                       threshold, iou_threshold)
 
+
 def display(preds, imgs, imshow=True, imwrite=False):
     for i in range(len(imgs)):
         if len(preds[i]['rois']) == 0:
             continue
 
-        imgs[i] = imgs[i].copy()
-
         for j in range(len(preds[i]['rois'])):
-            x1, y1, x2, y2 = preds[i]['rois'][j].astype(np.int)
+            (x1, y1, x2, y2) = preds[i]['rois'][j].astype(np.int)
+            cv2.rectangle(imgs[i], (x1, y1), (x2, y2), (255, 255, 0), 2)
             obj = obj_list[preds[i]['class_ids'][j]]
             score = float(preds[i]['scores'][j])
-            plot_one_box(imgs[i], [x1, y1, x2, y2], label=obj,score=score,color=color_list[get_index_label(obj, obj_list)])
 
+            cv2.putText(imgs[i], '{}, {:.3f}'.format(obj, score),
+                        (x1, y1 + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                        (255, 255, 0), 1)
 
         if imshow:
             cv2.imshow('img', imgs[i])

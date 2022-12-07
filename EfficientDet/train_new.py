@@ -2,26 +2,25 @@
 # adapted from https://github.com/signatrix/efficientdet/blob/master/train.py
 # modified by Zylo117
 
-import argparse
 import datetime
 import os
+import argparse
 import traceback
 
-import numpy as np
 import torch
 import yaml
-from tensorboardX import SummaryWriter
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
+from efficientdet.custom_dataset import CustomDataset, Resizer, Normalizer, Augmenter, collater
+from backbone import EfficientDetBackbone
+from tensorboardX import SummaryWriter
+import numpy as np
 from tqdm.autonotebook import tqdm
 
-from backbone import EfficientDetBackbone
-from efficientdet.dataset import CocoDataset, Resizer, Normalizer, Augmenter, collater
-from efficientdet.custom_dataset import CustomDataset, Resizer, Normalizer, Augmenter, collater
 from efficientdet.loss import FocalLoss
 from utils.sync_batchnorm import patch_replication_callback
-from utils.utils import replace_w_sync_bn, CustomDataParallel, get_last_weights, init_weights, boolean_string
+from utils.utils import replace_w_sync_bn, CustomDataParallel, get_last_weights, init_weights
 
 
 class Params:
@@ -34,35 +33,34 @@ class Params:
 
 def get_args():
     parser = argparse.ArgumentParser('Yet Another EfficientDet Pytorch: SOTA object detection network - Zylo117')
-    parser.add_argument('-c', '--compound_coef', type=int, default=0, help='coefficients of efficientdet')
     parser.add_argument('-p', '--project', type=str, default='custom', help='project file that contains parameters')
-    parser.add_argument('-n', '--num_workers', type=int, default=12, help='num_workers of dataloader')
-    parser.add_argument('--batch_size', type=int, default=12, help='The number of images per batch among all devices')
-    parser.add_argument('--head_only', type=boolean_string, default=False,
+    parser.add_argument('-c', '--compound_coef', type=int, default=0, help='coefficients of efficientdet')
+    parser.add_argument('-n', '--num_workers', type=int, default=4, help='num_workers of dataloader')
+    parser.add_argument('--batch_size', type=int, default=11, help='The number of images per batch among all devices')
+    parser.add_argument('--head_only', type=bool, default=False,
                         help='whether finetunes only the regressor and the classifier, '
-                             'useful in early stage convergence or small/easy dataset / Backbone Freeze')
-
+                             'useful in early stage convergence or small/easy dataset')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--optim', type=str, default='adamw', help='select optimizer for training, '
                                                                    'suggest using \'admaw\' until the'
                                                                    ' very final stage then switch to \'sgd\'')
+    parser.add_argument('--alpha', type=float, default=[0.1,0.2,0.3,0.2,1.,0.6,0.85])
+    parser.add_argument('--gamma', type=float, default=2)
     parser.add_argument('--num_epochs', type=int, default=500)
     parser.add_argument('--val_interval', type=int, default=1, help='Number of epoches between valing phases')
-    parser.add_argument('--save_interval', type=int, default=10, help='Number of steps between saving')
-
+    parser.add_argument('--save_interval', type=int, default=500, help='Number of steps between saving')
     parser.add_argument('--es_min_delta', type=float, default=0.0,
                         help='Early stopping\'s parameter: minimum change loss to qualify as an improvement')
+
     parser.add_argument('--es_patience', type=int, default=0,
                         help='Early stopping\'s parameter: number of epochs with no improvement after which training will be stopped. Set to 0 to disable this technique.')
-
+    parser.add_argument('--data_path', type=str, default='datasets/', help='the root folder of dataset')
     parser.add_argument('--log_path', type=str, default='logs/')
-    parser.add_argument('-w', '--load_weights', type=str, default=None,
+    parser.add_argument('--load_weights', type=str, default=None,
                         help='whether to load weights from a checkpoint, set None to initialize, set \'last\' to load last checkpoint')
-
     parser.add_argument('--saved_path', type=str, default='logs/')
-    parser.add_argument('--debug', type=boolean_string, default=False,
-                        help='whether visualize the predicted boxes of training, '
-                             'the output images will be in test/')
+    parser.add_argument('--debug', type=bool, default=False, help='whether visualize the predicted boxes of trainging, '
+                                                                  'the output images will be in test/')
 
     args = parser.parse_args()
     return args
@@ -113,20 +111,22 @@ def train(opt):
                   'collate_fn': collater,
                   'num_workers': opt.num_workers}
 
-    input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536, 1536]
+    input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536]
 
-    training_set = CustomDataset( transform=transforms.Compose([Normalizer(mean=params.mean, std=params.std),
-                                                             Augmenter(),
-                                                             Resizer(input_sizes[opt.compound_coef])]) )
+    training_set = CustomDataset(transform=transforms.Compose([Normalizer(mean=params.mean, std=params.std),
+                                                               Augmenter(),
+                                                               Resizer(input_sizes[opt.compound_coef])]))
 
     training_generator = DataLoader(training_set, **training_params)
 
-    val_set = CustomDataset( transform=transforms.Compose([Normalizer(mean=params.mean, std=params.std),
-                                      Augmenter(),
-                                      Resizer(input_sizes[opt.compound_coef])]), is_test=True)
+    val_set = CustomDataset(transform=transforms.Compose([Normalizer(mean=params.mean, std=params.std),
+                                                          Augmenter(),
+                                                          Resizer(input_sizes[opt.compound_coef])]), is_test=True)
 
     val_generator = DataLoader(val_set, **val_params)
 
+
+    # eval 은 params 에서 가져온 값이 str인데, str을 list로 바꿔서 사용할 수 있게 만들어 주는 역할
     model = EfficientDetBackbone(num_classes=len(params.obj_list), compound_coef=opt.compound_coef,
                                  ratios=eval(params.anchors_ratios), scales=eval(params.anchors_scales))
 
@@ -137,7 +137,7 @@ def train(opt):
         else:
             weights_path = get_last_weights(opt.saved_path)
         try:
-            last_step = int(os.path.basename(weights_path).split('_')[-1].split('.')[0])
+            last_step = int(os.path.basename(weights_path).split('_')[-1].split('.')[0]) # 이름에서 가져온 resume epochs
         except:
             last_step = 0
 
@@ -299,7 +299,7 @@ def train(opt):
                 print(
                     'Val. Epoch: {}/{}. Classification loss: {:1.5f}. Regression loss: {:1.5f}. Total loss: {:1.5f}'.format(
                         epoch, opt.num_epochs, cls_loss, reg_loss, loss))
-                writer.add_scalars('Loss', {'val': loss}, step)
+                writer.add_scalars('Total_loss', {'val': loss}, step)
                 writer.add_scalars('Regression_loss', {'val': reg_loss}, step)
                 writer.add_scalars('Classfication_loss', {'val': cls_loss}, step)
 
@@ -313,7 +313,7 @@ def train(opt):
 
                 # Early stopping
                 if epoch - best_epoch > opt.es_patience > 0:
-                    print('[Info] Stop training at epoch {}. The lowest loss achieved is {}'.format(epoch, best_loss))
+                    print('[Info] Stop training at epoch {}. The lowest loss achieved is {}'.format(epoch, loss))
                     break
     except KeyboardInterrupt:
         save_checkpoint(model, f'efficientdet-d{opt.compound_coef}_{epoch}_{step}.pth')
