@@ -333,3 +333,6 @@ Appreciate the great work from the following repositories:
 - [lukemelas/EfficientNet-PyTorch](https://github.com/lukemelas/EfficientNet-PyTorch)
 - [signatrix/efficientdet](https://github.com/signatrix/efficientdet)
 - [vacancy/Synchronized-BatchNorm-PyTorch](https://github.com/vacancy/Synchronized-BatchNorm-PyTorch)
+
+## From
+https://github.com/zylo117/Yet-Another-EfficientDet-Pytorch
