@@ -23,9 +23,14 @@ class BBoxTransform(nn.Module):
 
         w = regression[..., 3].exp() * wa
         h = regression[..., 2].exp() * ha
+        # wa, ha 라는 anchor box 값을 이용해, exp()*regression 값 만큼 살짝 이동 시키는 것 같다.
+        # 즉 anchor box가 진짜 우리가 찾는 box 이고, regreesion은 살짝 움직이는 값을 주는 것 이다.
+        # 여기는 H, W 살짝 수정
+
 
         y_centers = regression[..., 0] * ha + y_centers_a
         x_centers = regression[..., 1] * wa + x_centers_a
+        # 여기는 x , y 살짝 수정
 
         ymin = y_centers - h / 2.
         xmin = x_centers - w / 2.
@@ -39,7 +44,8 @@ class ClipBoxes(nn.Module):
 
     def __init__(self):
         super(ClipBoxes, self).__init__()
-
+    
+    # 예측 값 중에서, img 를 넘어서는 box들을 걸러내는 작업
     def forward(self, boxes, img):
         batch_size, num_channels, height, width = img.shape
 
@@ -52,7 +58,7 @@ class ClipBoxes(nn.Module):
         return boxes
 
 
-class Anchors(nn.Module):
+class Anchors(nn.Module): ## 여기가 아마 그냥 Anchor box generate 하는 곳인듯
     """
     adapted and modified from https://github.com/google/automl/blob/master/efficientdet/anchors.py by Zylo117
     """
@@ -64,7 +70,7 @@ class Anchors(nn.Module):
         if pyramid_levels is None:
             self.pyramid_levels = [3, 4, 5, 6, 7]
 
-        self.strides = kwargs.get('strides', [2 ** x for x in self.pyramid_levels])
+        self.strides = kwargs.get('strides', [2 ** x for x in self.pyramid_levels]) # 8 16 32 64 128
         self.scales = np.array(kwargs.get('scales', [2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)]))
         self.ratios = kwargs.get('ratios', [(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)])
 
@@ -89,12 +95,12 @@ class Anchors(nn.Module):
         Raises:
           ValueError: input size must be the multiple of largest feature stride.
         """
-        image_shape = image.shape[2:]
+        image_shape = image.shape[2:] # H, W 만 가져오는 ( batch, channel 빼고 )
 
-        if image_shape == self.last_shape and image.device in self.last_anchors:
+        if image_shape == self.last_shape and image.device in self.last_anchors: # ??
             return self.last_anchors[image.device]
 
-        if self.last_shape is None or self.last_shape != image_shape:
+        if self.last_shape is None or self.last_shape != image_shape: # ??
             self.last_shape = image_shape
 
         if dtype == torch.float16:
@@ -103,11 +109,15 @@ class Anchors(nn.Module):
             dtype = np.float32
 
         boxes_all = []
+
+        ## 여기는 input image 그대로 들어오기 때문에 input size 즉, [512, 640 ... ] 인 상태 그대로 온다.
         for stride in self.strides:
             boxes_level = []
-            for scale, ratio in itertools.product(self.scales, self.ratios):
+            for scale, ratio in itertools.product(self.scales, self.ratios): # itertools.product 를 하면 scale, ratio 로 만들 수 있는 모든 조합을 return
                 if image_shape[1] % stride != 0:
                     raise ValueError('input size must be divided by the stride.')
+                ## 따라서 stride인  8 16 32 64 128 값으로 나눠지는 배수의 input 혹은 더 큰 input만 들어온다.
+
                 base_anchor_size = self.anchor_scale * stride * scale
                 anchor_size_x_2 = base_anchor_size * ratio[0] / 2.0
                 anchor_size_y_2 = base_anchor_size * ratio[1] / 2.0
@@ -134,4 +144,5 @@ class Anchors(nn.Module):
 
         # save it for later use to reduce overhead
         self.last_anchors[image.device] = anchor_boxes
+        
         return anchor_boxes

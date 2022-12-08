@@ -21,6 +21,10 @@ class EfficientDetBackbone(nn.Module):
         self.input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536]
         self.box_class_repeats = [3, 3, 3, 4, 4, 4, 5, 5]
         self.anchor_scale = [4., 4., 4., 4., 4., 4., 4., 5.]
+
+        ## *args 는 값이 Tuple 형태로 들어오고 / **kwargs 는 값이 dict 형태로 들어온다.
+        ## 또한 dict 형태이기 때문에 kwargs['ratios'] 라는 Key 로 인덱싱이 가능하지만, .get을 사용하면 default 값을 정할 수 있다.
+        ## 내 생각인데, kwargs는 아무 값이나 넣을 수 있기 때문에 캡슐화 같은 느낌으로 사용하는 것 같다.
         self.aspect_ratios = kwargs.get('ratios', [(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)])
         self.num_scales = len(kwargs.get('scales', [2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)]))
         conv_channel_coef = {
@@ -35,7 +39,7 @@ class EfficientDetBackbone(nn.Module):
             7: [72, 200, 576],
         }
 
-        num_anchors = len(self.aspect_ratios) * self.num_scales
+        num_anchors = len(self.aspect_ratios) * self.num_scales # 3 x 3 = 9
 
         self.bifpn = nn.Sequential(
             *[BiFPN(self.fpn_num_filters[self.compound_coef],
@@ -81,3 +85,7 @@ class EfficientDetBackbone(nn.Module):
             print(ret)
         except RuntimeError as e:
             print('Ignoring ' + str(e) + '"')
+
+#
+# a = EfficientDetBackbone(7,0)
+# print(torchsummaryX.summary(a, torch.zeros(1,3,512,512)))

@@ -26,6 +26,7 @@ def invert_affine(metas: Union[float, list, tuple], preds):
                 new_w, new_h, old_w, old_h, padding_w, padding_h = metas[i]
                 preds[i]['rois'][:, [0, 2]] = preds[i]['rois'][:, [0, 2]] / (new_w / old_w)
                 preds[i]['rois'][:, [1, 3]] = preds[i]['rois'][:, [1, 3]] / (new_h / old_h)
+
     return preds
 
 

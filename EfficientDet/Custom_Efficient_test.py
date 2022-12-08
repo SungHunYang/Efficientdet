@@ -19,14 +19,14 @@ from utils.utils import preprocess, invert_affine, postprocess
 
 compound_coef = 0
 force_input_size = None  # set None to use default size
-img_path = 'C:/Users/HP/Desktop/r/test_300/101_3e4a22fd-eb94-434c-b310-0240d36d150c.jpg'
+img_path = 'C:/Users/HP/Desktop/r/test_300/101_8b332f07-4005-491f-a096-369eb4b60fdc.jpg'
 
 # replace this part with your project's anchor config
 anchor_ratios = [(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]
 anchor_scales = [2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)]
 
 threshold = 0.2
-iou_threshold = 0.2
+iou_threshold = 0.001
 
 use_cuda = False
 use_float16 = False
@@ -49,7 +49,7 @@ x = x.to(torch.float32 if not use_float16 else torch.float16).permute(0, 3, 1, 2
 
 model = EfficientDetBackbone(compound_coef=compound_coef, num_classes=len(obj_list),
                              ratios=anchor_ratios, scales=anchor_scales)
-model.load_state_dict(torch.load(f'./logs/efficientdet-d0_1_8115.pth', map_location=torch.device('cpu')))
+model.load_state_dict(torch.load(f'./efficientdet-d0_0_4727_11.392143180732148_20221208.pth', map_location=torch.device('cpu')))
 model.requires_grad_(False)
 model.eval()
 
@@ -83,7 +83,7 @@ def display(preds, imgs, imshow=False, imwrite=True):
 
             cv2.putText(imgs[i], '{}, {:.3f}'.format(obj, score),
                         (x1, y1 + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                        (255, 255, 0), 1)
+                        (255, 255, 0), 1) # cv2.FONT_HERSHEY_SIMPLEX
 
         if imshow:
             cv2.imshow('img', imgs[i])

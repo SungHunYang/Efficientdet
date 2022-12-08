@@ -28,8 +28,13 @@ class FocalLoss(nn.Module):
     def __init__(self):
         super(FocalLoss, self).__init__()
 
-    def forward(self, classifications, regressions, anchors, annotations, **kwargs):
-        alpha = 0.25
+    def forward(self, classifications, regressions, anchors, annotations, alpha=0.5, mode='mean', **kwargs):
+        ## annotations 는 정답지
+        
+        if isinstance(alpha, list):
+            alpha = torch.Tensor(alpha)
+        else:
+            alpha = alpha
         gamma = 2.0
         batch_size = classifications.shape[0]
         classification_losses = []
@@ -51,7 +56,7 @@ class FocalLoss(nn.Module):
             bbox_annotation = annotations[j]
             bbox_annotation = bbox_annotation[bbox_annotation[:, 4] != -1]
 
-            if bbox_annotation.shape[0] == 0:
+            if bbox_annotation.shape[0] == 0: # 정답지가 없을 때
                 if torch.cuda.is_available():
                     regression_losses.append(torch.tensor(0).to(dtype).cuda())
                     classification_losses.append(torch.tensor(0).to(dtype).cuda())
@@ -61,29 +66,35 @@ class FocalLoss(nn.Module):
 
                 continue
 
-            classification = torch.clamp(classification, 1e-4, 1.0 - 1e-4)
+            classification = torch.clamp(classification, 1e-4, 1.0 - 1e-4) # 값이 0.0001 ~ 9.9999까지 인것만 사용
 
-            IoU = calc_iou(anchor[:, :], bbox_annotation[:, :4])
+            IoU = calc_iou(anchor[:, :], bbox_annotation[:, :4]) # Box 끼리 IOU 계산 아마 각 Box 마다마다 IOU 값이 계산된 벡터가 나올 것이다.
 
-            IoU_max, IoU_argmax = torch.max(IoU, dim=1)
+            IoU_max, IoU_argmax = torch.max(IoU, dim=1) # IoU_max 는 max 값들, IoU_argmax 는 max 값의 위치
 
             # compute the loss for classification
-            targets = torch.ones_like(classification) * -1
+            targets = torch.ones_like(classification) * -1 # target을 모두 -1 로 초기화
             if torch.cuda.is_available():
                 targets = targets.cuda()
 
-            targets[torch.lt(IoU_max, 0.4), :] = 0
+            targets[torch.lt(IoU_max, 0.4), :] = 0 # torch.lt 는 IOU_max 가 0.4 보다 작으면 True 크거나 같으면 False # 즉, IOU 0.4 작은 값을 골라내서 0 으로 초기화 시켜 버림 ( BackGround 라고 하는 건가? )
+            
+            positive_indices = torch.ge(IoU_max, 0.5) # torch.ge 는 IOU_max 가 0.5 보다 작으면 False 크거나 같으면 True # 즉, IOU 0.5 이상만 사용
 
-            positive_indices = torch.ge(IoU_max, 0.5)
+            num_positive_anchors = positive_indices.sum() # IOU 0.5 이상 몇 개인지 개수 
 
-            num_positive_anchors = positive_indices.sum()
-
-            assigned_annotations = bbox_annotation[IoU_argmax, :]
+            assigned_annotations = bbox_annotation[IoU_argmax, :] # 0.5 이상의 box 들만 사용
 
             targets[positive_indices, :] = 0
-            targets[positive_indices, assigned_annotations[positive_indices, 4].long()] = 1
+            targets[positive_indices, assigned_annotations[positive_indices, 4].long()] = 1 # .long() 하면 long 타입으로 변경
 
-            alpha_factor = torch.ones_like(targets) * alpha
+            if isinstance(alpha,torch.Tensor):
+                alpha_factor = torch.empty_like(targets).copy_(targets)
+                for i in range(len(alpha)):
+                    alpha_factor[alpha_factor==i] = alpha[i]
+            else:
+                alpha_factor = torch.ones_like(targets) * alpha
+                
             if torch.cuda.is_available():
                 alpha_factor = alpha_factor.cuda()
 
@@ -156,5 +167,9 @@ class FocalLoss(nn.Module):
             imgs = [cv2.cvtColor(img, cv2.COLOR_RGB2BGR) for img in imgs]
             display(out, imgs, obj_list, imshow=False, imwrite=True)
 
-        return torch.stack(classification_losses).mean(dim=0, keepdim=True), \
-               torch.stack(regression_losses).mean(dim=0, keepdim=True)
+        if mode == 'sum':
+            return torch.stack(classification_losses).sum(dim=0, keepdim=True), \
+                   torch.stack(regression_losses).sum(dim=0, keepdim=True)
+        else:
+            return torch.stack(classification_losses).mean(dim=0, keepdim=True), \
+                   torch.stack(regression_losses).mean(dim=0, keepdim=True)

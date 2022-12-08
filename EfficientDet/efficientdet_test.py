@@ -31,16 +31,7 @@ use_float16 = False
 cudnn.fastest = True
 cudnn.benchmark = True
 
-obj_list = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light',
-            'fire hydrant', '', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep',
-            'cow', 'elephant', 'bear', 'zebra', 'giraffe', '', 'backpack', 'umbrella', '', '', 'handbag', 'tie',
-            'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove',
-            'skateboard', 'surfboard', 'tennis racket', 'bottle', '', 'wine glass', 'cup', 'fork', 'knife', 'spoon',
-            'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut',
-            'cake', 'chair', 'couch', 'potted plant', 'bed', '', 'dining table', '', '', 'toilet', '', 'tv',
-            'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink',
-            'refrigerator', '', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier',
-            'toothbrush']
+obj_list = ['BACKGOUND', 'ConcreteCrack', 'Exposure', 'Spalling', 'PaintDamage', 'Efflorescene', 'SteelDefect']
 
 # tf bilinear interpolation is different from any other's, just make do
 input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536]
@@ -56,7 +47,7 @@ x = x.to(torch.float32 if not use_float16 else torch.float16).permute(0, 3, 1, 2
 
 model = EfficientDetBackbone(compound_coef=compound_coef, num_classes=len(obj_list),
                              ratios=anchor_ratios, scales=anchor_scales)
-model.load_state_dict(torch.load(f'weights/efficientdet-d{compound_coef}.pth'))
+model.load_state_dict(torch.load(f'./logs/efficientdet-d0_1_8115.pth', map_location=torch.device('cpu')))
 model.requires_grad_(False)
 model.eval()
 
@@ -83,7 +74,7 @@ def display(preds, imgs, imshow=True, imwrite=False):
             continue
 
         for j in range(len(preds[i]['rois'])):
-            (x1, y1, x2, y2) = preds[i]['rois'][j].astype(np.int)
+            (x1, y1, x2, y2) = preds[i]['rois'][j].astype(np.int32)
             cv2.rectangle(imgs[i], (x1, y1), (x2, y2), (255, 255, 0), 2)
             obj = obj_list[preds[i]['class_ids'][j]]
             score = float(preds[i]['scores'][j])

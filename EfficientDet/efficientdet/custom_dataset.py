@@ -20,7 +20,7 @@ class CustomDataset(Dataset):
 
         self.transform = transform
 
-        self.ids = Dataset._read_image_ids(image_sets_file)
+        self.ids = CustomDataset._read_image_ids(image_sets_file)
         self.keep_difficult = keep_difficult
 
         # if the labels file exists, read in the class names

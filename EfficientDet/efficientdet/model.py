@@ -317,13 +317,13 @@ class Regressor(nn.Module):
             [SeparableConvBlock(in_channels, in_channels, norm=False, activation=False) for i in range(num_layers)])
         self.bn_list = nn.ModuleList(
             [nn.ModuleList([nn.BatchNorm2d(in_channels, momentum=0.01, eps=1e-3) for i in range(num_layers)]) for j in
-             range(5)])
+             range(5)]) # 이거 다섯번인 이유가 p3 ~ p7 인것 같다.
         self.header = SeparableConvBlock(in_channels, num_anchors * 4, norm=False, activation=False)
         self.swish = MemoryEfficientSwish() if not onnx_export else Swish()
 
     def forward(self, inputs):
         feats = []
-        for feat, bn_list in zip(inputs, self.bn_list):
+        for feat, bn_list in zip(inputs, self.bn_list): # 여기서 inputs 는 p3_out ~ p7_out 의 값이 들어오고, 각 p 마다 feats에 연결 된다.
             for i, bn, conv in zip(range(self.num_layers), bn_list, self.conv_list):
                 feat = conv(feat)
                 feat = bn(feat)
@@ -331,11 +331,11 @@ class Regressor(nn.Module):
             feat = self.header(feat)
 
             feat = feat.permute(0, 2, 3, 1)
-            feat = feat.contiguous().view(feat.shape[0], -1, 4)
+            feat = feat.contiguous().view(feat.shape[0], -1, 4) # box 4개 로 만들기 ( -1 은 모든 H,W 곱한 값 ) ( feat.shape[0] 은 batch_size )
 
             feats.append(feat)
 
-        feats = torch.cat(feats, dim=1)
+        feats = torch.cat(feats, dim=1) # append 하고 cat 하는 것이 보니까, 각 grid 마다 연결하는 것 같네 그래서 결국 -1 부분이 계속 길어짐 dim = 1 이니까
 
         return feats
 

@@ -46,15 +46,14 @@ def get_args():
                                                                    ' very final stage then switch to \'sgd\'')
     parser.add_argument('--alpha', type=float, default=[0.1,0.2,0.3,0.2,1.,0.6,0.85])
     parser.add_argument('--gamma', type=float, default=2)
-    parser.add_argument('--num_epochs', type=int, default=500)
-    parser.add_argument('--val_interval', type=int, default=1, help='Number of epoches between valing phases')
-    parser.add_argument('--save_interval', type=int, default=500, help='Number of steps between saving')
+    parser.add_argument('--num_epochs', type=int, default=5)
+    parser.add_argument('--val_interval', type=int, default=2, help='Number of epoches between valing phases') # val 을 몇번마다 할 지 # val 끝나면 자동 저장
+    parser.add_argument('--save_interval', type=int, default=4700, help='Number of steps between saving') # Train 할 때, debug 몇 일 때 저장 할 지
     parser.add_argument('--es_min_delta', type=float, default=0.0,
                         help='Early stopping\'s parameter: minimum change loss to qualify as an improvement')
 
     parser.add_argument('--es_patience', type=int, default=0,
                         help='Early stopping\'s parameter: number of epochs with no improvement after which training will be stopped. Set to 0 to disable this technique.')
-    parser.add_argument('--data_path', type=str, default='datasets/', help='the root folder of dataset')
     parser.add_argument('--log_path', type=str, default='logs/')
     parser.add_argument('--load_weights', type=str, default=None,
                         help='whether to load weights from a checkpoint, set None to initialize, set \'last\' to load last checkpoint')
@@ -65,6 +64,7 @@ def get_args():
     args = parser.parse_args()
     return args
 
+args = get_args()
 
 class ModelWithLoss(nn.Module):
     def __init__(self, model, debug=False):
@@ -76,10 +76,10 @@ class ModelWithLoss(nn.Module):
     def forward(self, imgs, annotations, obj_list=None):
         _, regression, classification, anchors = self.model(imgs)
         if self.debug:
-            cls_loss, reg_loss = self.criterion(classification, regression, anchors, annotations,
+            cls_loss, reg_loss = self.criterion(classification, regression, anchors, annotations, args.alpha,
                                                 imgs=imgs, obj_list=obj_list)
         else:
-            cls_loss, reg_loss = self.criterion(classification, regression, anchors, annotations)
+            cls_loss, reg_loss = self.criterion(classification, regression, anchors, annotations, args.alpha)
         return cls_loss, reg_loss
 
 
@@ -125,8 +125,6 @@ def train(opt):
 
     val_generator = DataLoader(val_set, **val_params)
 
-
-    # eval 은 params 에서 가져온 값이 str인데, str을 list로 바꿔서 사용할 수 있게 만들어 주는 역할
     model = EfficientDetBackbone(num_classes=len(params.obj_list), compound_coef=opt.compound_coef,
                                  ratios=eval(params.anchors_ratios), scales=eval(params.anchors_scales))
 
@@ -137,12 +135,13 @@ def train(opt):
         else:
             weights_path = get_last_weights(opt.saved_path)
         try:
-            last_step = int(os.path.basename(weights_path).split('_')[-1].split('.')[0]) # 이름에서 가져온 resume epochs
+            last_step = int(os.path.basename(weights_path).split('_')[-1].split('.')[0])
         except:
             last_step = 0
 
         try:
             ret = model.load_state_dict(torch.load(weights_path), strict=False)
+
         except RuntimeError as e:
             print(f'[Warning] Ignoring {e}')
             print(
@@ -215,6 +214,7 @@ def train(opt):
 
             epoch_loss = []
             progress_bar = tqdm(training_generator)
+
             for iter, data in enumerate(progress_bar):
                 if iter < step - last_epoch * num_iter_per_epoch:
                     progress_bar.update()
@@ -258,9 +258,10 @@ def train(opt):
 
                     step += 1
 
-                    if step % opt.save_interval == 0 and step > 0:
-                        save_checkpoint(model, f'efficientdet-d{opt.compound_coef}_{epoch}_{step}.pth')
-                        print('checkpoint...')
+                    # Train 시에 저장 하고 싶을 때, 
+                    # if step % opt.save_interval == 0 and step > 0:
+                    #     save_checkpoint(model, f'efficientdet-d{opt.compound_coef}_{epoch}_{step}.pth')
+                    #     print('checkpoint...')
 
                 except Exception as e:
                     print('[Error]', traceback.format_exc())
@@ -307,7 +308,7 @@ def train(opt):
                     best_loss = loss
                     best_epoch = epoch
 
-                    save_checkpoint(model, f'efficientdet-d{opt.compound_coef}_{epoch}_{step}.pth')
+                    save_checkpoint(model, f'efficientdet-d{opt.compound_coef}_{epoch}_{step}_{loss}_{datetime.datetime.now().strftime("%Y%m%d")}.pth')
 
                 model.train()
 
@@ -316,7 +317,7 @@ def train(opt):
                     print('[Info] Stop training at epoch {}. The lowest loss achieved is {}'.format(epoch, loss))
                     break
     except KeyboardInterrupt:
-        save_checkpoint(model, f'efficientdet-d{opt.compound_coef}_{epoch}_{step}.pth')
+        save_checkpoint(model, f'efficientdet-d{opt.compound_coef}_{epoch}_{step}_{loss}_{datetime.datetime.now().strftime("%Y%m%d")}.pth')
         writer.close()
     writer.close()
 
