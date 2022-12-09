@@ -28,9 +28,7 @@ class FocalLoss(nn.Module):
     def __init__(self):
         super(FocalLoss, self).__init__()
 
-    def forward(self, classifications, regressions, anchors, annotations, alpha=0.5, mode='mean', **kwargs):
-        ## annotations 는 정답지
-        
+    def forward(self, classifications, regressions, anchors, annotations,alpha=0.5, mode='mean', **kwargs):
         if isinstance(alpha, list):
             alpha = torch.Tensor(alpha)
         else:
@@ -54,9 +52,10 @@ class FocalLoss(nn.Module):
             regression = regressions[j, :, :]
 
             bbox_annotation = annotations[j]
+
             bbox_annotation = bbox_annotation[bbox_annotation[:, 4] != -1]
 
-            if bbox_annotation.shape[0] == 0: # 정답지가 없을 때
+            if bbox_annotation.shape[0] == 0:
                 if torch.cuda.is_available():
                     regression_losses.append(torch.tensor(0).to(dtype).cuda())
                     classification_losses.append(torch.tensor(0).to(dtype).cuda())
@@ -66,42 +65,41 @@ class FocalLoss(nn.Module):
 
                 continue
 
-            classification = torch.clamp(classification, 1e-4, 1.0 - 1e-4) # 값이 0.0001 ~ 9.9999까지 인것만 사용
+            classification = torch.clamp(classification, 1e-4, 1.0 - 1e-4)
+            IoU = calc_iou(anchor[:, :], bbox_annotation[:, :4])
 
-            IoU = calc_iou(anchor[:, :], bbox_annotation[:, :4]) # Box 끼리 IOU 계산 아마 각 Box 마다마다 IOU 값이 계산된 벡터가 나올 것이다.
-
-            IoU_max, IoU_argmax = torch.max(IoU, dim=1) # IoU_max 는 max 값들, IoU_argmax 는 max 값의 위치
+            IoU_max, IoU_argmax = torch.max(IoU, dim=1)
 
             # compute the loss for classification
-            targets = torch.ones_like(classification) * -1 # target을 모두 -1 로 초기화
+            targets = torch.ones_like(classification) * -1
             if torch.cuda.is_available():
                 targets = targets.cuda()
 
-            targets[torch.lt(IoU_max, 0.4), :] = 0 # torch.lt 는 IOU_max 가 0.4 보다 작으면 True 크거나 같으면 False # 즉, IOU 0.4 작은 값을 골라내서 0 으로 초기화 시켜 버림 ( BackGround 라고 하는 건가? )
+            targets[torch.lt(IoU_max, 0.4), :] = 0
             
-            positive_indices = torch.ge(IoU_max, 0.5) # torch.ge 는 IOU_max 가 0.5 보다 작으면 False 크거나 같으면 True # 즉, IOU 0.5 이상만 사용
+            positive_indices = torch.ge(IoU_max, 0.5)
 
-            num_positive_anchors = positive_indices.sum() # IOU 0.5 이상 몇 개인지 개수 
+            num_positive_anchors = positive_indices.sum()
 
-            assigned_annotations = bbox_annotation[IoU_argmax, :] # 0.5 이상의 box 들만 사용
+            assigned_annotations = bbox_annotation[IoU_argmax, :]
 
             targets[positive_indices, :] = 0
-            targets[positive_indices, assigned_annotations[positive_indices, 4].long()] = 1 # .long() 하면 long 타입으로 변경
+            targets[positive_indices, assigned_annotations[positive_indices, 4].long()] = 1
+            # binary 로 표현 하기 때문에, Class에 맞는 위치에 1 을 지정 -> Targets
 
+            ## alpha 역시 binary 에 맞게 가중치를 주어야 하기 때문에 그냥 위치에다가 값만 넣어주면 된다.
             if isinstance(alpha,torch.Tensor):
-                alpha_factor = torch.empty_like(targets).copy_(targets)
-                for i in range(len(alpha)):
-                    alpha_factor[alpha_factor==i] = alpha[i]
+                alpha_factor = torch.empty_like(targets).copy_(alpha)
             else:
                 alpha_factor = torch.ones_like(targets) * alpha
                 
             if torch.cuda.is_available():
                 alpha_factor = alpha_factor.cuda()
 
+            # torch.eq 는 1. 과 같은 부분만 True / where로 True 인 부분은 alpha_factor 주고 아니면 1 - alpha factor
             alpha_factor = torch.where(torch.eq(targets, 1.), alpha_factor, 1. - alpha_factor)
             focal_weight = torch.where(torch.eq(targets, 1.), 1. - classification, classification)
             focal_weight = alpha_factor * torch.pow(focal_weight, gamma)
-
             bce = -(targets * torch.log(classification) + (1.0 - targets) * torch.log(1.0 - classification))
 
             cls_loss = focal_weight * bce

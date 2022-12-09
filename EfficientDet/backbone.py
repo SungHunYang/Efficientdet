@@ -87,5 +87,6 @@ class EfficientDetBackbone(nn.Module):
             print('Ignoring ' + str(e) + '"')
 
 #
-# a = EfficientDetBackbone(7,0)
+# a = EfficientDetBackbone(7,0).backbone_net
 # print(torchsummaryX.summary(a, torch.zeros(1,3,512,512)))
+

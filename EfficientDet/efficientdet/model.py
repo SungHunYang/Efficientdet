@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+import torchsummaryX
 from torchvision.ops.boxes import nms as nms_torch
 
 from efficientnet import EfficientNet as EffNet
@@ -80,7 +81,7 @@ class BiFPN(nn.Module):
         self.conv6_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
         self.conv7_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
 
-        # Feature scaling layers
+        # Feature scaling layers -> mode : nearest, linear, bilinear, bicubic, trilinear ( 여기 중에서 bilinear, nearest 를 image 에서 가장 많이 사용한다 함 )
         self.p6_upsample = nn.Upsample(scale_factor=2, mode='nearest')
         self.p5_upsample = nn.Upsample(scale_factor=2, mode='nearest')
         self.p4_upsample = nn.Upsample(scale_factor=2, mode='nearest')
@@ -197,9 +198,12 @@ class BiFPN(nn.Module):
 
         # Weights for P6_0 and P7_0 to P6_1
         p6_w1 = self.p6_w1_relu(self.p6_w1)
-        weight = p6_w1 / (torch.sum(p6_w1, dim=0) + self.epsilon)
+        weight = p6_w1 / (torch.sum(p6_w1, dim=0) + self.epsilon) # 이런 방식이 fast normalized fusion 인듯
         # Connections for P6_0 and P7_0 to P6_1 respectively
         p6_up = self.conv6_up(self.swish(weight[0] * p6_in + weight[1] * self.p6_upsample(p7_in)))
+        """
+        (p6_w1)weight를 만든다음에 p6_up 을 만들 때 하나의 값으로 만든 다음에 곱하는 이유가 바로 Upsampling에서 그냥 더하는 것을 방지 하고 가중치를 주는 방식
+        """
 
         # Weights for P5_0 and P6_0 to P5_1
         p5_w1 = self.p5_w1_relu(self.p5_w1)
@@ -388,22 +392,29 @@ class EfficientNet(nn.Module):
     def __init__(self, compound_coef, load_weights=False):
         super(EfficientNet, self).__init__()
         model = EffNet.from_pretrained(f'efficientnet-b{compound_coef}', load_weights)
+
+        ## FC 관련 부분 삭제
         del model._conv_head
         del model._bn1
         del model._avg_pooling
         del model._dropout
         del model._fc
+        
         self.model = model
 
     def forward(self, x):
+        
+        # 첫 layer 지나고
         x = self.model._conv_stem(x)
         x = self.model._bn0(x)
         x = self.model._swish(x)
+        
         feature_maps = []
 
         # TODO: temporarily storing extra tensor last_x and del it later might not be a good idea,
         #  try recording stride changing when creating efficientnet,
         #  and then apply it here.
+
         last_x = None
         for idx, block in enumerate(self.model._blocks):
             drop_connect_rate = self.model._global_params.drop_connect_rate
@@ -426,3 +437,4 @@ if __name__ == '__main__':
 
     def count_parameters(model):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
+

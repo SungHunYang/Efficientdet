@@ -75,7 +75,7 @@ class ModelWithLoss(nn.Module):
 
     def forward(self, imgs, annotations, obj_list=None):
         _, regression, classification, anchors = self.model(imgs)
-        if self.debug:
+        if self.debug: # 이거 하면 예측할 때마다 사진에 그려줌
             cls_loss, reg_loss = self.criterion(classification, regression, anchors, annotations, args.alpha,
                                                 imgs=imgs, obj_list=obj_list)
         else:
