@@ -27,7 +27,7 @@ out_path = 'C:/Users/HP/Desktop/output'
 anchor_ratios = [(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]
 anchor_scales = [2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)]
 
-threshold = 0.2
+threshold = 0.3
 iou_threshold = 0
 
 use_cuda = False
@@ -45,7 +45,7 @@ input_size = input_sizes[compound_coef] if force_input_size is None else force_i
 
 model = EfficientDetBackbone(compound_coef=compound_coef, num_classes=len(obj_list),
                              ratios=anchor_ratios, scales=anchor_scales)
-model.load_state_dict(torch.load(f'./efficientdet-d0_14_12180_0.6044400512689242_20221209.pth', map_location=torch.device('cpu')))
+model.load_state_dict(torch.load(f'./efficientdet-d0_26_21924_0.5826629481312854_20221209.pth', map_location=torch.device('cpu')))
 model.requires_grad_(False)
 model.eval()
 

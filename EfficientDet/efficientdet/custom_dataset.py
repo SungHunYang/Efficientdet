@@ -218,13 +218,13 @@ class Resizer(object):
         return {'img': torch.from_numpy(new_image).to(torch.float32), 'annot': torch.from_numpy(annots), 'scale': scale}
 
 
-class Augmenter(object):
+class Augmenter(object): ## 좌우 반전
     """Convert ndarrays in sample to Tensors."""
 
-    def __call__(self, sample, flip_x=0.5):
-        if np.random.rand() < flip_x:
+    def __call__(self, sample, flip_x=0.5): 
+        if np.random.rand() < flip_x: # 0 ~ 1 사이의 random인 값에서 0.5 보다 작으면 실행 즉, 50% 로 실행
             image, annots = sample['img'], sample['annot']
-            image = image[:, ::-1, :]
+            image = image[:, ::-1, :] # -1 이라서 거꾸로 만들어지는 것
 
             rows, cols, channels = image.shape
 
@@ -234,7 +234,7 @@ class Augmenter(object):
             x_tmp = x1.copy()
 
             annots[:, 0] = cols - x2
-            annots[:, 2] = cols - x_tmp
+            annots[:, 2] = cols - x_tmp # x축으로 뒤집어지는 box 보정 
 
             sample = {'img': image, 'annot': annots}
 

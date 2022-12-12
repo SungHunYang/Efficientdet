@@ -10,8 +10,10 @@ import traceback
 import torch
 import yaml
 from torch import nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 from torchvision import transforms
+from efficientdet.data_preprocessing import TrainAugmentation
+
 from efficientdet.custom_dataset import CustomDataset, Resizer, Normalizer, Augmenter, collater
 from backbone import EfficientDetBackbone
 from tensorboardX import SummaryWriter
@@ -44,10 +46,10 @@ def get_args():
     parser.add_argument('--optim', type=str, default='adamw', help='select optimizer for training, '
                                                                    'suggest using \'admaw\' until the'
                                                                    ' very final stage then switch to \'sgd\'')
-    parser.add_argument('--alpha', type=float, default=[0.1,0.2,0.3,0.2,1.,0.6,0.85])
+    parser.add_argument('--alpha', type=float, default=[0.1,0.2,0.3,0.2,0.9,0.6,0.8])
     parser.add_argument('--gamma', type=float, default=2)
-    parser.add_argument('--num_epochs', type=int, default=5)
-    parser.add_argument('--val_interval', type=int, default=2, help='Number of epoches between valing phases') # val 을 몇번마다 할 지 # val 끝나면 자동 저장
+    parser.add_argument('--num_epochs', type=int, default=10)
+    parser.add_argument('--val_interval', type=int, default=1, help='Number of epoches between valing phases') # val 을 몇번마다 할 지 # val 끝나면 자동 저장
     parser.add_argument('--save_interval', type=int, default=4700, help='Number of steps between saving') # Train 할 때, debug 몇 일 때 저장 할 지
     parser.add_argument('--es_min_delta', type=float, default=0.0,
                         help='Early stopping\'s parameter: minimum change loss to qualify as an improvement')
@@ -56,7 +58,8 @@ def get_args():
                         help='Early stopping\'s parameter: number of epochs with no improvement after which training will be stopped. Set to 0 to disable this technique.')
     parser.add_argument('--log_path', type=str, default='logs/')
     parser.add_argument('--load_weights', type=str, default=None,
-                        help='whether to load weights from a checkpoint, set None to initialize, set \'last\' to load last checkpoint')
+                        help='whether to load weights from a checkpoint, set None to initialize, set \'last\' to load last checkpoint') # './efficientdet/efficientdet-d0.pth'
+    # 중간에서 이어가거나, Pretrain 한것을 넣어주는 경우 -> 그런데 PreTrain과 class 개수가 달라서 에러가 나는데 문제 없다 classsize 빼고 다른 곳은 이미 적용 됬음
     parser.add_argument('--saved_path', type=str, default='logs/')
     parser.add_argument('--debug', type=bool, default=False, help='whether visualize the predicted boxes of trainging, '
                                                                   'the output images will be in test/')
@@ -75,11 +78,11 @@ class ModelWithLoss(nn.Module):
 
     def forward(self, imgs, annotations, obj_list=None):
         _, regression, classification, anchors = self.model(imgs)
-        if self.debug: # 이거 하면 예측할 때마다 사진에 그려줌
+        if self.debug:
             cls_loss, reg_loss = self.criterion(classification, regression, anchors, annotations, args.alpha,
-                                                imgs=imgs, obj_list=obj_list)
+                                                imgs=imgs, obj_list=obj_list) # mode ='mean' or 'sum'
         else:
-            cls_loss, reg_loss = self.criterion(classification, regression, anchors, annotations, args.alpha)
+            cls_loss, reg_loss = self.criterion(classification, regression, anchors, annotations, args.alpha) # mode ='mean' or 'sum'
         return cls_loss, reg_loss
 
 
@@ -113,9 +116,17 @@ def train(opt):
 
     input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536]
 
-    training_set = CustomDataset(transform=transforms.Compose([Normalizer(mean=params.mean, std=params.std),
+    dataset = []
+    training = CustomDataset(transform=transforms.Compose([Normalizer(mean=params.mean, std=params.std),
                                                                Augmenter(),
                                                                Resizer(input_sizes[opt.compound_coef])]))
+    dataset.append(training)
+
+    training = CustomDataset(transform=TrainAugmentation(input_sizes[opt.compound_coef],params.mean,params.std))
+
+    dataset.append(training)
+
+    training_set = ConcatDataset(dataset)
 
     training_generator = DataLoader(training_set, **training_params)
 
