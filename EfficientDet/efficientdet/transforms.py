@@ -413,7 +413,7 @@ class PhotometricDistort(object): # 그동안 했던거 여러개 모아서 해�
         self.rand_light_noise = RandomLightingNoise()
 
     def __call__(self, sample):
-        sample = self.rand_brightness(sample)
+#         sample = self.rand_brightness(sample) -> 아예 사진이 검게 되거나 흰 & 검 으로 바뀌는 요인 
         if random.randint(2):
             distort = Compose(self.pd[:-1])
         else:
