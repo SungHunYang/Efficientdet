@@ -14,14 +14,15 @@ import numpy as np
 import os
 import glob
 from pathlib import Path
+from tqdm import tqdm
 
 from efficientdet.utils import BBoxTransform, ClipBoxes
 from utils.utils import preprocess, invert_affine, postprocess
 
 compound_coef = 0
 force_input_size = None  # set None to use default size
-img_path = 'C:/Users/HP/Desktop/r/test_300'
-out_path = 'C:/Users/HP/Desktop/output'
+img_path = '/Users/sunghun/Desktop/capstone/test_300'
+out_path = '/Users/sunghun/Desktop/capstone/output'
 
 # replace this part with your project's anchor config
 anchor_ratios = [(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]
@@ -137,7 +138,7 @@ def display(preds, imgs, name, imshow=False, imwrite=True):
 
 images = glob.glob(f"{img_path}/*.jpg")
 
-for image in images:
+for image in tqdm(images):
 
     ori_imgs, framed_imgs, framed_metas = preprocess(image, max_size=input_size)
     base_name = os.path.basename(image)

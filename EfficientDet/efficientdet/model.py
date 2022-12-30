@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch
-import torchsummaryX
+# import torchsummaryX
 from torchvision.ops.boxes import nms as nms_torch
 
 from efficientnet import EfficientNet as EffNet
