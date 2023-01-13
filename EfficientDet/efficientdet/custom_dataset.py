@@ -100,21 +100,10 @@ class CustomDataset(Dataset):
                 class_name = data['annotations'][i]['attributes']['class']
 
                 if class_name in self.class_dict:
-                    x1 = float(data['annotations'][i]['bbox'][0] / W) * 300
-                    y1 = float(data['annotations'][i]['bbox'][1] / H) * 300
-                    x2 = float((data['annotations'][i]['bbox'][0] + data['annotations'][i]['bbox'][2]) / W) * 300
-                    y2 = float((data['annotations'][i]['bbox'][1] + data['annotations'][i]['bbox'][3]) / H) * 300
-                    # X = x2-x1
-                    # Y = y2-y1
-                    #
-                    # if X <= 0.1 and Y <= 0.1:
-                    #     continue
-                    #
-                    #
-                    # x1 = x1 * 300
-                    # x2 = x2 * 300
-                    # y1 = y1 * 300
-                    # y2 = y2 * 300
+                    x1 = float(data['annotations'][i]['bbox'][0] / W) * 512
+                    y1 = float(data['annotations'][i]['bbox'][1] / H) * 512
+                    x2 = float((data['annotations'][i]['bbox'][0] + data['annotations'][i]['bbox'][2]) / W) * 512
+                    y2 = float((data['annotations'][i]['bbox'][1] + data['annotations'][i]['bbox'][3]) / H) * 512
 
                     if x1 > x2 or y1 > y2:
                         print(f"{image_id} error 발생")
@@ -210,6 +199,7 @@ class Resizer(object):
 
         image = cv2.resize(image, (resized_width, resized_height), interpolation=cv2.INTER_LINEAR)
 
+        # H, W 순서 때문에 이렇게 새로 array 만들고 넣는 것 같은데... 이렇게 해야 하나?
         new_image = np.zeros((self.img_size, self.img_size, 3))
         new_image[0:resized_height, 0:resized_width] = image
 

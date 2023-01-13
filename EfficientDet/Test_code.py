@@ -21,15 +21,15 @@ from utils.utils import preprocess, invert_affine, postprocess
 
 compound_coef = 0
 force_input_size = None  # set None to use default size
-img_path = '/Users/sunghun/Desktop/capstone/test_300'
+img_path = '/Users/sunghun/Desktop/capstone/test'
 out_path = '/Users/sunghun/Desktop/capstone/output'
 
 # replace this part with your project's anchor config
 anchor_ratios = [(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]
 anchor_scales = [2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)]
 
-threshold = 0.3
-iou_threshold = 0
+threshold = 0.1
+iou_threshold = 0.3
 
 use_cuda = False
 use_float16 = False
@@ -136,7 +136,7 @@ def display(preds, imgs, name, imshow=False, imwrite=True):
             cv2.imwrite(f'{out_path}/{name}', imgs[i])
 
 
-images = glob.glob(f"{img_path}/*.jpg")
+images = glob.glob(f"{img_path}/*.jpeg")
 
 for image in tqdm(images):
 
