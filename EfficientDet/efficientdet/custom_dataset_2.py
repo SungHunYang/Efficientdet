@@ -83,7 +83,7 @@ class CustomDataset(Dataset):
                     y_max = y2+i
             num+=1
 
-        image = image[y_min:y_max,x_min,x_max,:]
+        image = image[y_min:y_max,x_min:x_max,:]
 
 
         sample = {'img': image, 'annot': annotation}
