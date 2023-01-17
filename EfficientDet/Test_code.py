@@ -28,7 +28,7 @@ out_path = '/Users/sunghun/Desktop/capstone/output'
 anchor_ratios = [(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]
 anchor_scales = [2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)]
 
-threshold = 0.1
+threshold = 0.2
 iou_threshold = 0.3
 
 use_cuda = False
